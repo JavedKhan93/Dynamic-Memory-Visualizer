@@ -1,0 +1,166 @@
+
+import tkinter as tk
+from tkinter import messagebox
+import matplotlib.pyplot as plt
+
+# -------------------- Page Replacement Algorithms --------------------
+class PageReplacement:
+    def __init__(self, frames):
+        self.frames = frames
+
+    def fifo(self, reference_string):
+        frame = []
+        faults = 0
+        fault_list = []
+        for page in reference_string:
+            if page not in frame:
+                faults += 1
+                if len(frame) < self.frames:
+                    frame.append(page)
+                else:
+                    frame.pop(0)
+                    frame.append(page)
+                fault_list.append(1)
+            else:
+                fault_list.append(0)
+        return faults, fault_list
+
+    def lru(self, reference_string):
+        frame = []
+        recent = {}
+        faults = 0
+        fault_list = []
+
+        for i, page in enumerate(reference_string):
+            if page not in frame:
+                faults += 1
+                if len(frame) < self.frames:
+                    frame.append(page)
+                else:
+                    # Remove least recently used
+                    lru_page = min(recent, key=recent.get)
+                    frame.remove(lru_page)
+                    frame.append(page)
+                fault_list.append(1)
+            else:
+                fault_list.append(0)
+            recent[page] = i
+        return faults, fault_list
+
+# -------------------- Visualization Function --------------------
+def visualize_page_faults(reference_string, fault_list, algorithm_name):
+    x = list(range(1, len(reference_string) + 1))
+    y = fault_list
+
+    plt.figure(figsize=(10, 4))
+    plt.plot(x, y, marker='o', linestyle='-', color='red')
+    plt.title(f"Page Fault Visualization - {algorithm_name}")
+    plt.xlabel("Page Reference Number")
+    plt.ylabel("Page Fault (1=Fault, 0=Hit)")
+    plt.xticks(x, reference_string)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+# -------------------- GUI Class --------------------
+class MemoryVisualizer:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Dynamic Memory Management Visualizer")
+        self.root.geometry("800x600")
+
+        # Input fields
+        self.label = tk.Label(root, text="Enter Reference String (Comma Separated):")
+        self.label.pack()
+        self.entry = tk.Entry(root, width=50)
+        self.entry.pack()
+
+        self.label_frames = tk.Label(root, text="Enter Number of Frames:")
+        self.label_frames.pack()
+        self.entry_frames = tk.Entry(root, width=10)
+        self.entry_frames.pack()
+
+        # Buttons for simulation
+        self.button_fifo = tk.Button(root, text="Simulate FIFO", command=self.simulate_fifo)
+        self.button_fifo.pack(pady=5)
+        self.button_lru = tk.Button(root, text="Simulate LRU", command=self.simulate_lru)
+        self.button_lru.pack(pady=5)
+
+        # Result display
+        self.result_label_fifo = tk.Label(root, text="Page Faults (FIFO): ")
+        self.result_label_fifo.pack(pady=5)
+        self.result_label_lru = tk.Label(root, text="Page Faults (LRU): ")
+        self.result_label_lru.pack(pady=5)
+
+        self.comparison_label = tk.Label(root, text="Comparison Result:", justify="left", font=("Courier", 10))
+        self.comparison_label.pack(pady=10)
+
+        # Shared state
+        self.reference_string = []
+        self.frames = 0
+        self.fifo_faults = None
+        self.lru_faults = None
+
+    # Input parsing and validation
+    def get_inputs(self):
+        try:
+            self.reference_string = list(map(int, self.entry.get().strip().split(',')))
+            self.frames = int(self.entry_frames.get().strip())
+            return True
+        except ValueError:
+            messagebox.showerror("Invalid Input", "Please enter integers only.")
+            return False
+
+    # Simulate FIFO
+    def simulate_fifo(self):
+        if not self.get_inputs(): return
+
+        pr = PageReplacement(self.frames)
+        self.fifo_faults, fifo_fault_list = pr.fifo(self.reference_string)
+        self.result_label_fifo.config(text=f"Page Faults (FIFO): {self.fifo_faults}")
+        visualize_page_faults(self.reference_string, fifo_fault_list, "FIFO")
+        self.compare_algorithms()
+
+    # Simulate LRU
+    def simulate_lru(self):
+        if not self.get_inputs(): return
+
+        pr = PageReplacement(self.frames)
+        try:
+            self.lru_faults, lru_fault_list = pr.lru(self.reference_string)
+            self.result_label_lru.config(text=f"Page Faults (LRU): {self.lru_faults}")
+            visualize_page_faults(self.reference_string, lru_fault_list, "LRU")
+            self.compare_algorithms()
+        except Exception as e:
+            self.result_label_lru.config(text=f"Error: {str(e)}")
+
+    # Compare both algorithms
+    def compare_algorithms(self):
+        if self.fifo_faults is None or self.lru_faults is None:
+            return
+
+        min_faults = min(self.fifo_faults, self.lru_faults)
+
+        fifo_accuracy = 100 - ((self.fifo_faults - min_faults) / self.fifo_faults * 100) if self.fifo_faults != 0 else 100
+        lru_accuracy = 100 - ((self.lru_faults - min_faults) / self.lru_faults * 100) if self.lru_faults != 0 else 100
+
+        comparison_text = f"\n--- Algorithm Comparison Table ---\n"
+        comparison_text += f"{'Algorithm':<15}{'Page Faults':<15}{'Accuracy (%)':<15}\n"
+        comparison_text += f"{'FIFO':<15}{self.fifo_faults:<15}{fifo_accuracy:.2f}%\n"
+        comparison_text += f"{'LRU':<15}{self.lru_faults:<15}{lru_accuracy:.2f}%\n"
+
+        if self.fifo_faults < self.lru_faults:
+            better = "FIFO"
+        elif self.lru_faults < self.fifo_faults:
+            better = "LRU"
+        else:
+            better = "Both are equal"
+
+        comparison_text += f"\n👉 More Accurate: {better}"
+        self.comparison_label.config(text=comparison_text)
+
+# -------------------- Main Application Entry --------------------
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = MemoryVisualizer(root)
+    root.mainloop()
